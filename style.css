@@ -1,0 +1,763 @@
+/* ====================================================
+   「ひろしまの和」広島県らしさを極めたスタイルシート (バグ修正版)
+   ==================================================== */
+
+/* CSSカスタム変数 */
+:root {
+  --bg-dark: #090d16;
+  --panel-bg: rgba(15, 23, 42, 0.85);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  
+  /* 人数による塗り分けカラー */
+  --c0-gray: #1e293b;
+  --c1-blue-light: rgba(56, 189, 248, 0.45);
+  --c2-blue-medium: rgba(14, 165, 233, 0.72);
+  --c3-blue-dark: rgba(2, 132, 199, 0.95);
+  
+
+
+  --accent-yellow: #facc15;
+  --accent-yellow-hover: #eab308;
+  --accent-sky: #38bdf8;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --success: #22c55e;
+  
+  --font-english: 'Outfit', sans-serif;
+  --font-japanese: 'Noto Sans JP', sans-serif;
+  
+  --transition-speed: 0.3s;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-japanese);
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* スクロールバー */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* アプリケーションレイアウト (左右2カラム) */
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 左側サイドバー */
+.sidebar {
+  width: 420px;
+  min-width: 420px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-right: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  z-index: 10;
+  box-shadow: 10px 0 40px rgba(0, 0, 0, 0.6);
+  transition: all var(--transition-speed);
+}
+
+.app-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(9, 13, 22, 0.4);
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.logo-icon {
+  font-size: 1.8rem;
+  color: var(--accent-yellow);
+  filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.4));
+  animation: pulse 2s infinite ease-in-out;
+}
+
+h1 {
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: 0.05em;
+  background: linear-gradient(to right, #ffffff, var(--accent-sky));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.05rem;
+}
+
+.stats-badge {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 0.4rem 0.85rem;
+  border-radius: 30px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-english);
+  width: fit-content;
+}
+
+.stats-count {
+  color: var(--accent-yellow);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+/* モード切り替えセグメントタブ */
+.mode-toggle-container {
+  display: flex;
+  background: rgba(9, 13, 22, 0.6);
+  padding: 0.3rem;
+  border-radius: 10px;
+  margin: 1rem 1.25rem 0.25rem 1.25rem;
+  border: 1px solid var(--panel-border);
+}
+
+.toggle-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: var(--font-japanese);
+}
+
+.toggle-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.toggle-btn.active {
+  background: var(--accent-yellow);
+  color: #090d16;
+  box-shadow: 0 4px 15px rgba(250, 204, 21, 0.25);
+  font-weight: 700;
+}
+
+/* 凡例パネル */
+.legend-panel {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 1.25rem 0 1.25rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.legend-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.legend-title {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--text-main);
+}
+
+.legend-item i {
+  font-size: 0.8rem;
+}
+
+.color-box {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.color-box.c0 { background-color: var(--c0-gray); border: 1px solid rgba(255, 255, 255, 0.1); }
+.color-box.c1 { background-color: var(--c1-blue-light); }
+.color-box.c2 { background-color: var(--c2-blue-medium); }
+.color-box.c3 { background-color: var(--c3-blue-dark); }
+
+
+
+/* スクロール領域 */
+.sidebar-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 1.25rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 14px;
+  padding: 1.25rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent-sky);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 0.4rem;
+}
+
+/* フォーム要素 */
+.form-group {
+  margin-bottom: 0.85rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  font-weight: 500;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.input-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.65rem 0.85rem 0.65rem 2.25rem;
+  background: rgba(9, 13, 22, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.9rem;
+  transition: all var(--transition-speed);
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--accent-sky);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+  background: rgba(9, 13, 22, 0.8);
+}
+
+select.form-control {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.select-wrapper::after {
+  content: '\f078';
+  font-family: 'Font Awesome 5 Free';
+  font-weight: 900;
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  font-size: 0.75rem;
+}
+
+/* ボタン */
+.btn {
+  width: 100%;
+  padding: 0.65rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all var(--transition-speed);
+  font-family: var(--font-japanese);
+}
+
+.btn-primary {
+  background: var(--accent-yellow);
+  color: #090d16;
+}
+
+.btn-primary:hover {
+  background: var(--accent-yellow-hover);
+  box-shadow: 0 0 15px rgba(250, 204, 21, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(1px);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.btn-danger:hover {
+  background: var(--danger);
+  color: white;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-secondary {
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--accent-sky);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+}
+
+.btn-secondary:hover {
+  background: var(--accent-sky);
+  color: #090d16;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
+/* 管理アクション */
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  padding: 1rem 1.25rem;
+  background: rgba(9, 13, 22, 0.4);
+  border-top: 1px solid var(--panel-border);
+}
+
+/* 登録状況リスト */
+.list-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.location-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 350px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.location-item {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all var(--transition-speed);
+}
+
+.location-item:hover {
+  border-color: rgba(56, 189, 248, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.location-item.highlight-active {
+  border-color: var(--accent-yellow);
+  background: rgba(250, 204, 21, 0.05);
+}
+
+.location-header {
+  padding: 0.6rem 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.location-name-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.location-count-badge {
+  background: rgba(250, 204, 21, 0.12);
+  color: var(--accent-yellow);
+  border: 1px solid rgba(250, 204, 21, 0.25);
+  padding: 0.1rem 0.4rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: var(--font-english);
+}
+
+.chevron-icon {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: transform var(--transition-speed);
+}
+
+.location-item.active .chevron-icon {
+  transform: rotate(180deg);
+  color: var(--accent-sky);
+}
+
+.names-collapse {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--transition-speed) cubic-bezier(0, 1, 0, 1);
+  background: rgba(9, 13, 22, 0.3);
+}
+
+.location-item.active .names-collapse {
+  max-height: 400px;
+  transition: max-height var(--transition-speed) cubic-bezier(1, 0, 1, 0);
+}
+
+.names-list {
+  padding: 0.4rem 0.85rem 0.65rem 0.85rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.name-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  transition: background var(--transition-speed);
+}
+
+.name-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.name-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.name-number {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-family: var(--font-english);
+  width: 12px;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.15rem;
+  border-radius: 4px;
+  transition: all var(--transition-speed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-btn:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1.5px dashed rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+}
+
+.empty-icon {
+  font-size: 1.6rem;
+  color: rgba(255, 255, 255, 0.08);
+}
+
+/* ====================================================
+   右側メインエリア（ユーザー指定の map-area / map-wrapper）
+   ==================================================== */
+.map-area {
+  width: 100%;
+  height: 100vh;
+  min-height: 700px;
+  overflow: hidden;
+  flex: 1;
+  background-color: var(--bg-dark);
+  position: relative;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-dark);
+}
+
+/* ====================================================
+   Leaflet カスタムスタイル (ダークテーマ用)
+   ==================================================== */
+.leaflet-container {
+  background-color: var(--bg-dark) !important;
+  font-family: var(--font-japanese);
+}
+
+/* GeoJSONポリゴン境界線・塗りつぶしのトランジション */
+.leaflet-interactive {
+  outline: none;
+  transition: fill 0.25s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.2s ease;
+}
+
+/* カスタムツールチップ */
+.leaflet-tooltip-own {
+  background: rgba(9, 13, 22, 0.95) !important;
+  border: 1px solid var(--panel-border) !important;
+  color: var(--text-main) !important;
+  font-weight: 700 !important;
+  border-radius: 6px !important;
+  padding: 0.35rem 0.65rem !important;
+  font-size: 0.8rem !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5) !important;
+  pointer-events: none;
+}
+
+.leaflet-tooltip-left::before {
+  border-left-color: rgba(9, 13, 22, 0.95) !important;
+}
+.leaflet-tooltip-right::before {
+  border-right-color: rgba(9, 13, 22, 0.95) !important;
+}
+
+/* カスタムポップアップ */
+.leaflet-popup-content-wrapper {
+  background: rgba(9, 13, 22, 0.96) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--panel-border) !important;
+  color: var(--text-main) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.7) !important;
+  padding: 0.2rem !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(9, 13, 22, 0.96) !important;
+  border: 1px solid var(--panel-border) !important;
+  box-shadow: none !important;
+}
+
+.leaflet-popup-content {
+  margin: 0.8rem 1.1rem !important;
+  min-width: 220px;
+}
+
+/* ====================================================
+   トースト & ユーティリティ
+   ==================================================== */
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: rgba(9, 13, 22, 0.95);
+  border-left: 4px solid var(--accent-sky);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  padding: 0.85rem 1.25rem;
+  border-radius: 8px;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  transform: translateY(150%);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  font-size: 0.85rem;
+}
+
+.toast.show {
+  transform: translateY(0);
+}
+
+.toast.toast-success {
+  border-left-color: var(--success);
+}
+
+.toast.toast-danger {
+  border-left-color: var(--danger);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.4));
+  }
+  50% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 12px rgba(250, 204, 21, 0.6));
+  }
+}
+
+/* ====================================================
+   レスポンシブデザイン (スマホ & タブレット)
+   ==================================================== */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  
+  .sidebar {
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .sidebar-scrollable {
+    padding: 1rem;
+    max-height: 50vh;
+  }
+
+  .map-area {
+    width: 100%;
+    height: 480px;
+    min-height: 480px;
+    padding: 0.5rem;
+  }
+
+  .location-list {
+    max-height: 200px;
+  }
+}
+
+/* ====================================================
+   画面上エラー表示用スタイル (公開時・CORS対策)
+   ==================================================== */
+.map-error-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(15, 23, 42, 0.96) !important;
+  border: 1px solid var(--danger) !important;
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  width: 85%;
+  max-width: 500px;
+  text-align: center;
+  z-index: 10000;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  pointer-events: auto;
+}
+
+.map-error-icon {
+  font-size: 2.2rem;
+  color: var(--danger);
+  animation: shake 0.5s ease-in-out;
+}
+
+.map-error-text {
+  color: var(--text-main);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.map-error-subtext {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin-top: 0.25rem;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}

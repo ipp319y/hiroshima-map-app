@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ひろしまの和 | 広島県 抽象化SVG領域塗り分けマップ</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+  <!-- 外部スタイルシート -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- アプリメインコンテナ -->
+  <div class="app-container">
+    
+    <!-- 左側：操作パネル（フォーム・一覧） -->
+    <aside class="sidebar">
+      
+      <!-- ヘッダー -->
+      <header class="app-header">
+        <div class="logo-container">
+          <i class="fa-solid fa-map-location-dot logo-icon"></i>
+          <div>
+            <h1>ひろしまの和</h1>
+            <div class="subtitle">広島県 居住地可視化マップ</div>
+          </div>
+        </div>
+        <div class="stats-badge">
+          <i class="fa-solid fa-users"></i>
+          登録者総数: <span id="total-count" class="stats-count">0</span> 名
+        </div>
+      </header>
+
+      <!-- モード切り替えタブ -->
+      <div class="mode-toggle-container">
+        <button id="btn-mode-municipality" class="toggle-btn active" onclick="switchMode('municipality')">
+          <i class="fa-solid fa-mountain-city"></i> 市町村モード
+        </button>
+        <button id="btn-mode-ward" class="toggle-btn" onclick="switchMode('ward')">
+          <i class="fa-solid fa-city"></i> 広島市区モード
+        </button>
+      </div>
+
+      <!-- 凡例セクション -->
+      <div class="legend-panel">
+        <div class="legend-group">
+          <div class="legend-title">登録人数</div>
+          <div class="legend-items">
+            <span class="legend-item"><span class="color-box c0"></span>0人</span>
+            <span class="legend-item"><span class="color-box c1"></span>1人</span>
+            <span class="legend-item"><span class="color-box c2"></span>2〜3人</span>
+            <span class="legend-item"><span class="color-box c3"></span>4人以上</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-scrollable">
+        
+        <!-- 登録フォーム -->
+        <section class="glass-card">
+          <h2 class="card-title">
+            <i class="fa-solid fa-user-plus"></i>
+            <span id="form-title">住んでいる地域を登録</span>
+          </h2>
+          <form id="register-form" onsubmit="event.preventDefault(); handleAddUser();">
+            <div class="form-group">
+              <label for="username">お名前 / ニックネーム</label>
+              <div class="input-wrapper">
+                <i class="fa-solid fa-user input-icon"></i>
+                <input type="text" id="username" class="form-control" placeholder="例：広島 太郎" required maxlength="20">
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="hometown-select" id="select-label">住んでいる地域</label>
+              <div class="input-wrapper select-wrapper">
+                <i class="fa-solid fa-location-dot input-icon"></i>
+                <select id="hometown-select" class="form-control" required>
+                  <!-- JSで動的生成 -->
+                </select>
+              </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">
+              <i class="fa-solid fa-plus"></i> マップに登録する
+            </button>
+          </form>
+        </section>
+
+        <!-- 地域別の登録一覧セクション -->
+        <section class="glass-card list-section">
+          <h2 class="card-title">
+            <i class="fa-solid fa-list-ol"></i>
+            地域別登録リスト
+          </h2>
+          <div id="list-container">
+            <div class="empty-state">
+              <i class="fa-regular fa-map empty-icon"></i>
+              <span>登録データはありません。</span>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- データ管理アクション -->
+      <div class="action-grid">
+        <button onclick="exportToCSV()" class="btn btn-secondary" title="データをCSV出力">
+          <i class="fa-solid fa-file-csv"></i> CSV出力
+        </button>
+        <button onclick="confirmClearAll()" class="btn btn-danger" title="すべてのデータを削除">
+          <i class="fa-solid fa-trash-can"></i> 全データ削除
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- 右側：Leaflet 行政区域マップ表示エリア -->
+    <main class="map-area">
+      <div id="map"></div>
+    </main>
+
+  </div>
+
+  <!-- トースト通知 -->
+  <div id="toast" class="toast">
+    <i id="toast-icon" class="fa-solid"></i>
+    <span id="toast-message">メッセージ</span>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- 外部スクリプト -->
+  <script src="script.js"></script>
+</body>
+</html>
