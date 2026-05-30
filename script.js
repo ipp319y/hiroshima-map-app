@@ -2,8 +2,27 @@
    「ひろしまの和」実際の行政区域境界 (Leaflet & GeoJSON) マップロジック
    ==================================================== */
 
+// Firebase Modular SDK のインポート (CDN経由)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { 
+  getFirestore, collection, addDoc, doc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy, writeBatch 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
 // ----------------------------------------------------
-// 1. グローバル状態・Leaflet 地図管理
+// Firebase 設定欄
+// ----------------------------------------------------
+// ⚠️ 本番運用時はご自身の Firebase コンソールから取得したConfigに書き換えてください。
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// ----------------------------------------------------
+// 1. グローバル状態・Leaflet 地図管理・DB状態
 // ----------------------------------------------------
 let map = null;
 let geojsonLayer = null;
@@ -18,16 +37,21 @@ let appData = {
 let muniGeoJsonData = null;
 let wardGeoJsonData = null;
 
+// Firebase Firestore 関連グローバル変数
+let db = null;
+let isDbMode = false; // Firestoreが正常接続できているかどうか
+let unsubscribeFirestore = null;
+
 // 登録可能な地域リスト (プルダウン動的生成およびマッピング検証用)
 const REGION_LIST = {
   municipality: [
-    "広島市", "呉市", "竹原市", "三原市", "尾道市", "福山市", "府中市", "三次市", 
-    "庄原市", "大竹市", "東広島市", "廿日市市", "安芸高田市", "江田島市", 
-    "府中町", "海田町", "熊野町", "坂町", "安芸太田町", "北広島町", "大崎上島町", 
-    "世羅町", "神石高原町"
+    "安芸太田町", "安芸高田市", "江田島市", "大崎上島町", "大竹市", "尾道市", 
+    "海田町", "北広島町", "熊野町", "呉市", "坂町", "庄原市", "神石高原町", 
+    "世羅町", "竹原市", "廿日市市", "東広島市", "広島市", "福山市", "府中市", 
+    "府中町", "三原市", "三次市"
   ],
   ward: [
-    "中区", "東区", "南区", "西区", "安佐南区", "安佐北区", "安芸区", "佐伯区"
+    "安芸区", "安佐北区", "安佐南区", "佐伯区", "中区", "西区", "東区", "南区"
   ]
 };
 
@@ -38,8 +62,101 @@ window.addEventListener('DOMContentLoaded', () => {
   // Leaflet 地図インスタンスの初期化
   initMap();
 
-  // GeoJSON データの非同期読み込み (fetch)
-  // サブディレクトリデプロイ(GitHub Pages)でも確実に動作するよう、完全な相対パス「./data/」を使用します
+  // 広島市選択時の区追加プルダウン連動
+  const hometownSelect = document.getElementById('hometown-select');
+  const wardSelectContainer = document.getElementById('wardSelectContainer');
+  const wardSelect = document.getElementById('wardSelect');
+
+  hometownSelect.addEventListener('change', () => {
+    if (activeMode === 'municipality' && hometownSelect.value === '広島市') {
+      wardSelectContainer.style.display = 'block';
+    } else {
+      wardSelectContainer.style.display = 'none';
+      wardSelect.value = '';
+    }
+  });
+
+  // 共有DB接続状態の初期表示を "checking" (確認中) に設定
+  updateDbStatus("checking");
+
+  // Firebase設定が完了しているかどうかの判定
+  const isFirebaseConfigured = 
+    firebaseConfig.apiKey && 
+    firebaseConfig.apiKey !== "YOUR_API_KEY" && 
+    firebaseConfig.projectId && 
+    firebaseConfig.projectId !== "YOUR_PROJECT_ID";
+
+  if (!isFirebaseConfigured) {
+    console.log("Firebase config is not set. Running in localStorage mode.");
+    isDbMode = false;
+    updateDbStatus("unconfigured");
+    
+    // GeoJSONをフェッチして localStorage からデータをロード
+    fetchGeoJsonAndLoadData(false);
+  } else {
+    // Firebase を初期化して Firestore へ接続試行
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      
+      // 接続に成功した前提で、リアルタイム監視を開始
+      const q = query(collection(db, "residents"), orderBy("createdAt", "asc"));
+      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+        // 接続完了ステータスに変更
+        isDbMode = true;
+        updateDbStatus("connected");
+
+        // 共有DBから受け取ったデータで appData を完全に再構築
+        appData = { municipality: {}, ward: {} };
+
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const id = doc.id;
+          const mode = data.mode || "municipality";
+
+          const region = data.region;
+          const ward = data.ward || "";
+          const name = data.name;
+          // 新規追加直後の serverTimestamp は非同期反映まで null なので現在時刻でフォールバック
+          const createdAt = data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString();
+
+          if (region) {
+            if (!appData[mode][region]) {
+              appData[mode][region] = [];
+            }
+            appData[mode][region].push({
+              id: id, // FirestoreのドキュメントIDを保持
+              name: name,
+              ward: ward,
+              createdAt: createdAt
+            });
+          }
+        });
+
+        // UIとマップを再描画
+        updateUI();
+      }, (error) => {
+        console.error("Firestore connection failed, falling back to localStorage.", error);
+        isDbMode = false;
+        updateDbStatus("error");
+        
+        // エラー発生時は localStorage モードへフォールバック
+        fetchGeoJsonAndLoadData(true);
+      });
+
+      // GeoJSON データのフェッチのみを先行して実行
+      fetchGeoJsonOnly();
+    } catch (e) {
+      console.error("Firebase init failed, falling back to localStorage.", e);
+      isDbMode = false;
+      updateDbStatus("error");
+      fetchGeoJsonAndLoadData(true);
+    }
+  }
+});
+
+// GeoJSONをフェッチし、localStorage データをロードする（フォールバック時）
+function fetchGeoJsonAndLoadData(isFallback) {
   Promise.all([
     fetch('./data/hiroshima_municipalities.geojson').then(res => {
       if (!res.ok) throw new Error("hiroshima_municipalities.geojson の読み込みに失敗しました。");
@@ -56,23 +173,79 @@ window.addEventListener('DOMContentLoaded', () => {
     // localStorageから全データをロード
     loadAllData();
     
-    // 初期UI（プルダウン、リスト、地図塗り分け）の描画
+    // 初期UIの描画
     initFormSelect();
     updateUI();
   }).catch(err => {
     console.error("GeoJSON Load Error:", err);
-    
-    // 画面上に誰でも一目でわかる警告オーバーレイを生成
     showMapError(
       "地図データの読み込みに失敗しました。dataフォルダ内のGeoJSONファイルのパスを確認してください。",
-      "【原因の可能性】ローカル環境で index.html を直接ダブルクリックして開いている場合、ブラウザのセキュリティ制限（CORS）によって GeoJSON の fetch が拒否されます。README.md を参考に、簡易Webサーバー（Python / serve 等）を起動してアクセスしてください。"
+      "【原因の可能性】ローカル環境で index.html を直接ダブルクリックして開いている場合、ブラウザのセキュリティ制限（CORS）によって GeoJSON の fetch が拒否されます。README.md を参考に、簡易Webサーバーを起動してアクセスしてください。"
     );
-    
-    // データ入力UIの動作を止めないための最低限のフォールバック
     loadAllData();
     initFormSelect();
   });
-});
+}
+
+// 共有DB用の GeoJSON フェッチのみ（データは onSnapshot がロードするため、地図境界データだけを準備）
+function fetchGeoJsonOnly() {
+  Promise.all([
+    fetch('./data/hiroshima_municipalities.geojson').then(res => {
+      if (!res.ok) throw new Error("hiroshima_municipalities.geojson の読み込みに失敗しました。");
+      return res.json();
+    }),
+    fetch('./data/hiroshima_wards.geojson').then(res => {
+      if (!res.ok) throw new Error("hiroshima_wards.geojson の読み込みに失敗しました。");
+      return res.json();
+    })
+  ]).then(([muniData, wardData]) => {
+    muniGeoJsonData = muniData;
+    wardGeoJsonData = wardData;
+    
+    // プルダウン等の初期化
+    initFormSelect();
+    // もしすでに onSnapshot が完了していれば、UIを一度描画
+    updateUI();
+  }).catch(err => {
+    console.error("GeoJSON Load Error (DB Mode):", err);
+    showMapError(
+      "地図データの読み込みに失敗しました。",
+      "ブラウザのセキュリティ制限（CORS）またはパス設定を確認してください。"
+    );
+    initFormSelect();
+  });
+}
+
+// 共有DB接続状態のバッジUI更新
+function updateDbStatus(status) {
+  const box = document.getElementById('db-status-box');
+  const icon = document.getElementById('db-status-icon');
+  const text = document.getElementById('db-status-text');
+
+  if (!box || !icon || !text) return;
+
+  box.className = 'db-status-box'; // リセット
+  
+  if (status === 'checking') {
+    box.classList.add('checking');
+    icon.className = 'fa-solid fa-spinner fa-spin';
+    text.textContent = '共有DB接続状態を確認中...';
+  } else if (status === 'connected') {
+    box.classList.add('connected');
+    icon.className = 'fa-solid fa-cloud';
+    icon.classList.remove('fa-spin');
+    text.textContent = '共有DB接続済み';
+  } else if (status === 'unconfigured') {
+    box.classList.add('unconfigured');
+    icon.className = 'fa-solid fa-cloud-slash';
+    text.textContent = 'Firebase設定が未完了です。現在はローカル保存モードで動作しています。';
+  } else if (status === 'error' || status === 'fallback') {
+    box.classList.add('error');
+    icon.className = 'fa-solid fa-triangle-exclamation';
+    text.textContent = '共有DB接続失敗：ローカル保存モード';
+  }
+}
+
 
 // ----------------------------------------------------
 // 3. Leaflet マップ初期化
@@ -99,8 +272,33 @@ function initFormSelect() {
   const select = document.getElementById('hometown-select');
   const label = document.getElementById('select-label');
   const formTitle = document.getElementById('form-title');
+  const wardSelect = document.getElementById('wardSelect');
+  const wardSelectContainer = document.getElementById('wardSelectContainer');
   
   select.innerHTML = '';
+
+  // 広島市の区プルダウンの動的生成
+  if (wardSelect) {
+    wardSelect.innerHTML = '';
+    const defaultWardOption = document.createElement('option');
+    defaultWardOption.value = "";
+    defaultWardOption.disabled = true;
+    defaultWardOption.selected = true;
+    defaultWardOption.hidden = true;
+    defaultWardOption.textContent = "区を選択してください";
+    wardSelect.appendChild(defaultWardOption);
+
+    REGION_LIST.ward.forEach(ward => {
+      const opt = document.createElement('option');
+      opt.value = ward;
+      opt.textContent = ward;
+      wardSelect.appendChild(opt);
+    });
+  }
+
+  // 初期時は区選択欄を非表示にしてリセット
+  if (wardSelectContainer) wardSelectContainer.style.display = 'none';
+  if (wardSelect) wardSelect.value = '';
 
   const defaultOption = document.createElement('option');
   defaultOption.value = "";
@@ -150,6 +348,12 @@ function switchMode(mode) {
 
   // ポップアップを閉じる
   map.closePopup();
+
+  // 区選択コンテナのクリアと非表示
+  const wardSelectContainer = document.getElementById('wardSelectContainer');
+  const wardSelect = document.getElementById('wardSelect');
+  if (wardSelectContainer) wardSelectContainer.style.display = 'none';
+  if (wardSelect) wardSelect.value = '';
 
   // フォーム・UIリスト・地図塗り分けの更新
   initFormSelect();
@@ -258,7 +462,12 @@ function onEachFeature(feature, layer) {
         popupHTML += `
           <div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">登録者：</div>
           <ol style="margin: 0; padding-left: 1.15rem; font-size: 0.8rem; max-height: 120px; overflow-y: auto; color: #f8fafc;">
-            ${names.map(name => `<li>${escapeHtml(name)}</li>`).join('')}
+            ${names.map(nameObj => {
+              const name = (typeof nameObj === 'object') ? nameObj.name : nameObj;
+              const ward = (typeof nameObj === 'object') ? nameObj.ward : "";
+              const wardLabel = (activeMode === 'municipality' && regionName === '広島市') ? (ward ? `（${ward}）` : '（区未入力）') : "";
+              return `<li>${escapeHtml(name)}${escapeHtml(wardLabel)}</li>`;
+            }).join('')}
           </ol>
         `;
       } else {
@@ -340,7 +549,7 @@ function highlightMapRegion(regionName, active) {
 // ----------------------------------------------------
 
 // 新規メンバー登録
-function handleAddUser() {
+async function handleAddUser() {
   const nameInput = document.getElementById('username');
   const select = document.getElementById('hometown-select');
 
@@ -356,62 +565,192 @@ function handleAddUser() {
     return;
   }
 
-  // アクティブなモードのデータに格納
-  if (!appData[activeMode][region]) {
-    appData[activeMode][region] = [];
+  // 広島市選択時の区選択バリデーション
+  let ward = "";
+  if (activeMode === 'municipality' && region === '広島市') {
+    const wardSelect = document.getElementById('wardSelect');
+    ward = wardSelect ? wardSelect.value : "";
+    if (!ward) {
+      showToast('広島市を選択した場合は、区も選択してください。', 'error');
+      return;
+    }
   }
-  appData[activeMode][region].push(name);
 
-  // 保存とUI・地図更新
-  saveCurrentData();
-  updateUI();
-  showToast(`${name}さんを「${region}」に登録しました！`, 'success');
+  if (isDbMode) {
+    // 共有データベース (Firestore) 保存モード
+    try {
+      await addDoc(collection(db, "residents"), {
+        name: name,
+        region: region,
+        ward: ward,
+        mode: activeMode,
+        createdAt: serverTimestamp()
+      });
+      showToast(`${name}さんを「${region}${ward ? ' ' + ward : ''}」に登録しました！`, 'success');
+      
+      // お名前入力欄のみクリアしフォーカス
+      nameInput.value = '';
+      nameInput.focus();
 
-  // お名前入力欄のみクリアしフォーカス
-  nameInput.value = '';
-  nameInput.focus();
+      // 登録した地域を自動的にハイライト＆フォーカス表示
+      setTimeout(() => {
+        focusOnMapRegion(region);
+      }, 400);
+    } catch (error) {
+      console.error("Firestore Add Error:", error);
+      showToast('共有DBへの追加に失敗しました。ローカル保存モードへの自動切替を行います。', 'error');
+      // エラー発生時はフォールバック
+      isDbMode = false;
+      updateDbStatus("error");
+    }
+  } else {
+    // 従来のローカル保存モード (localStorage)
+    if (!appData[activeMode][region]) {
+      appData[activeMode][region] = [];
+    }
 
-  // 登録した地域を自動的にハイライト＆フォーカス表示
-  setTimeout(() => {
-    focusOnMapRegion(region);
-  }, 400);
+    const userObj = {
+      name: name,
+      ward: ward,
+      createdAt: new Date().toISOString()
+    };
+    appData[activeMode][region].push(userObj);
+
+    // 保存とUI・地図更新
+    saveCurrentData();
+    updateUI();
+    showToast(`${name}さんを「${region}${ward ? ' ' + ward : ''}」に登録しました！`, 'success');
+
+    // お名前入力欄のみクリアしフォーカス
+    nameInput.value = '';
+    nameInput.focus();
+
+    // 登録した地域を自動的にハイライト＆フォーカス表示
+    setTimeout(() => {
+      focusOnMapRegion(region);
+    }, 400);
+  }
 }
 
 // 個別名前削除
-function deleteUser(region, index) {
+async function deleteUser(region, index) {
   const currentData = appData[activeMode];
   if (!currentData[region]) return;
 
   const deletedName = currentData[region][index];
-  currentData[region].splice(index, 1);
+  const deletedNameStr = (typeof deletedName === 'object') ? deletedName.name : deletedName;
+  
+  if (isDbMode && typeof deletedName === 'object' && deletedName.id) {
+    // 共有データベース (Firestore) 削除モード
+    try {
+      await deleteDoc(doc(db, "residents", deletedName.id));
+      showToast(`${deletedNameStr}さんのデータを削除しました。`, 'success');
+      map.closePopup();
+    } catch (error) {
+      console.error("Firestore Delete Error:", error);
+      showToast('共有DBからの削除に失敗しました。', 'error');
+    }
+  } else {
+    // 従来のローカル保存モード (localStorage)
+    currentData[region].splice(index, 1);
 
-  // 地域に誰もいなくなったらキーを消去
-  if (currentData[region].length === 0) {
-    delete currentData[region];
+    // 地域に誰もいなくなったらキーを消去
+    if (currentData[region].length === 0) {
+      delete currentData[region];
+    }
+
+    saveCurrentData();
+    updateUI();
+    showToast(`${deletedNameStr}さんのデータを削除しました。`, 'success');
+    map.closePopup();
   }
-
-  saveCurrentData();
-  updateUI();
-  showToast(`${deletedName}さんのデータを削除しました。`, 'success');
-  map.closePopup();
 }
 
-// 全データクリア
-function confirmClearAll() {
+// 全データクリア (三者択一制御)
+async function confirmClearAll() {
   const currentData = appData[activeMode];
   const total = Object.values(currentData).reduce((sum, names) => sum + names.length, 0);
 
-  if (total === 0) {
+  // 全モードの合計件数も算出しておく
+  const totalAllModes = 
+    Object.values(appData.municipality).reduce((sum, names) => sum + names.length, 0) +
+    Object.values(appData.ward).reduce((sum, names) => sum + names.length, 0);
+
+  const checkTotal = isDbMode ? totalAllModes : total;
+  if (checkTotal === 0) {
     showToast('削除するデータがありません。', 'error');
     return;
   }
 
-  const modeLabel = activeMode === 'municipality' ? '市町村モード' : '広島市区モード';
-  if (confirm(`【警告】現在の${modeLabel}の全データ（${total}名分）を完全に削除します。よろしいですか？\n※他方のモードのデータは消去されません。`)) {
-    appData[activeMode] = {};
+  const choice = prompt(
+    "【全データ一括削除オプション】\n\n" +
+    "現在のモードのデータをすべて削除する場合は 「1」 を入力してください。\n" +
+    "すべてのモードのデータを完全に削除する場合は 「2」 を入力してください。\n" +
+    "キャンセルする場合は、このまま「キャンセル」を押すか空白にしてください。"
+  );
+
+  if (!choice) {
+    showToast('削除をキャンセルしました。', 'success');
+    return;
+  }
+
+  if (choice !== '1' && choice !== '2') {
+    showToast('無効な数値です。削除をキャンセルしました。', 'error');
+    return;
+  }
+
+  const confirmMsg = choice === '1' 
+    ? `【警告】本当に現在のモードの全データ（${total}名分）を削除しますか？`
+    : `【警告】本当に全モードのすべてのデータ（${totalAllModes}名分）を完全に削除しますか？\n（※この操作は取り消せません）`;
+
+  if (!confirm(confirmMsg)) {
+    showToast('削除をキャンセルしました。', 'success');
+    return;
+  }
+
+  if (isDbMode) {
+    // 共有データベース (Firestore) バッチ削除モード
+    try {
+      const batch = writeBatch(db);
+      let count = 0;
+      const modesToDelete = choice === '1' ? [activeMode] : ['municipality', 'ward'];
+
+      modesToDelete.forEach(m => {
+        Object.values(appData[m]).forEach(users => {
+          users.forEach(user => {
+            if (user.id) {
+              const ref = doc(db, "residents", user.id);
+              batch.delete(ref);
+              count++;
+            }
+          });
+        });
+      });
+
+      if (count > 0) {
+        await batch.commit();
+        showToast(`${count}件のデータを共有DBから削除しました。`, 'success');
+        map.closePopup();
+      } else {
+        showToast('削除対象のデータがありませんでした。', 'error');
+      }
+    } catch (error) {
+      console.error("Firestore Clear Error:", error);
+      showToast('共有DBの一括削除に失敗しました。', 'error');
+    }
+  } else {
+    // 従来のローカル保存モード (localStorage)
+    if (choice === '1') {
+      appData[activeMode] = {};
+      showToast('現在のモードのデータをすべてクリアしました。', 'success');
+    } else {
+      appData.municipality = {};
+      appData.ward = {};
+      showToast('すべてのモードのデータを完全にクリアしました。', 'success');
+    }
+    
     saveCurrentData();
     updateUI();
-    showToast('すべての登録データをクリアしました。', 'success');
     map.closePopup();
   }
 }
@@ -456,6 +795,9 @@ function saveCurrentData() {
 
 // 独立した localStorage からデータをロード
 function loadAllData() {
+  // 不要となった古い同意確認フラグを完全に削除・クリーンアップ
+  localStorage.removeItem('privacyConsentConfirmed');
+
   const stored = localStorage.getItem('hiroshima_geojson_app_data');
 
   if (stored) {
@@ -468,18 +810,33 @@ function loadAllData() {
       appData = { municipality: {}, ward: {} };
     }
   } else {
-    // デモ用初期データ
+    // デモ用初期データ (オブジェクト形式に合わせて定義)
     appData = {
       municipality: {
-        "福山市": ["山田太郎", "佐藤花子"],
-        "呉市": ["鈴木一郎"],
-        "東広島市": ["藤川幸二"],
-        "三次市": ["永川勝浩"],
-        "廿日市市": ["中島浩平"]
+        "福山市": [
+          { name: "山田太郎", ward: "", createdAt: new Date().toISOString() },
+          { name: "佐藤花子", ward: "", createdAt: new Date().toISOString() }
+        ],
+        "呉市": [
+          { name: "鈴木一郎", ward: "", createdAt: new Date().toISOString() }
+        ],
+        "東広島市": [
+          { name: "藤川幸二", ward: "", createdAt: new Date().toISOString() }
+        ],
+        "三次市": [
+          { name: "永川勝浩", ward: "", createdAt: new Date().toISOString() }
+        ],
+        "廿日市市": [
+          { name: "中島浩平", ward: "", createdAt: new Date().toISOString() }
+        ]
       },
       ward: {
-        "中区": ["田中花子"],
-        "安佐南区": ["高橋太郎"]
+        "中区": [
+          { name: "田中花子", ward: "", createdAt: new Date().toISOString() }
+        ],
+        "安佐南区": [
+          { name: "高橋太郎", ward: "", createdAt: new Date().toISOString() }
+        ]
       }
     };
     saveCurrentData();
@@ -532,17 +889,22 @@ function updateUI() {
         </div>
         <div class="names-collapse">
           <ul class="names-list">
-            ${names.map((name, idx) => `
+            ${names.map((nameObj, idx) => {
+              const name = (typeof nameObj === 'object') ? nameObj.name : nameObj;
+              const ward = (typeof nameObj === 'object') ? nameObj.ward : "";
+              const wardLabel = (activeMode === 'municipality' && place === '広島市') ? (ward ? `（${ward}）` : '（区未入力）') : "";
+              return `
               <li class="name-item">
                 <span class="name-label">
                   <span class="name-number">${idx + 1}.</span>
-                  <span>${escapeHtml(name)}</span>
+                  <span>${escapeHtml(name)}${escapeHtml(wardLabel)}</span>
                 </span>
                 <button class="delete-btn" onclick="event.stopPropagation(); deleteUser('${escapeHtml(place)}', ${idx})" title="この登録を削除">
                   <i class="fa-solid fa-xmark"></i>
                 </button>
               </li>
-            `).join('')}
+              `;
+            }).join('')}
             <li style="padding-top: 0.25rem;">
               <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="event.stopPropagation(); focusOnMapRegion('${escapeHtml(place)}')">
                 <i class="fa-solid fa-eye"></i> マップで表示
@@ -604,23 +966,33 @@ function focusOnMapRegion(place) {
 // 10. CSVエクスポート機能 (BOM付き)
 // ----------------------------------------------------
 function exportToCSV() {
-  const currentData = appData[activeMode];
-  const total = Object.values(currentData).reduce((sum, names) => sum + names.length, 0);
+  let csvContent = 'mode,region,ward,name,createdAt\n';
+  let hasData = false;
 
-  if (total === 0) {
+  ['municipality', 'ward'].forEach(mode => {
+    const modeData = appData[mode];
+    Object.entries(modeData).forEach(([region, names]) => {
+      names.forEach(nameObj => {
+        hasData = true;
+        const name = (typeof nameObj === 'object') ? nameObj.name : nameObj;
+        const ward = (typeof nameObj === 'object') ? nameObj.ward : "";
+        const createdAt = (typeof nameObj === 'object') ? (nameObj.createdAt || "") : "";
+
+        const safeMode = `"${mode}"`;
+        const safeRegion = `"${region.replace(/"/g, '""')}"`;
+        const safeWard = `"${ward.replace(/"/g, '""')}"`;
+        const safeName = `"${name.replace(/"/g, '""')}"`;
+        const safeCreatedAt = `"${createdAt.replace(/"/g, '""')}"`;
+
+        csvContent += `${safeMode},${safeRegion},${safeWard},${safeName},${safeCreatedAt}\n`;
+      });
+    });
+  });
+
+  if (!hasData) {
     showToast('出力するデータがありません。', 'error');
     return;
   }
-
-  let csvContent = 'お名前,登録地域\n';
-
-  Object.entries(currentData).forEach(([place, names]) => {
-    names.forEach(name => {
-      const safeName = `"${name.replace(/"/g, '""')}"`;
-      const safePlace = `"${place.replace(/"/g, '""')}"`;
-      csvContent += `${safeName},${safePlace}\n`;
-    });
-  });
 
   const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
   const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -629,10 +1001,9 @@ function exportToCSV() {
   const url = URL.createObjectURL(blob);
   
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const modeLabel = activeMode === 'municipality' ? 'municipality' : 'ward';
   
   link.setAttribute('href', url);
-  link.setAttribute('download', `hiroshima_geojson_${modeLabel}_${dateStr}.csv`);
+  link.setAttribute('download', `hiroshima_geojson_all_${dateStr}.csv`);
   link.style.visibility = 'hidden';
   
   document.body.appendChild(link);
@@ -707,3 +1078,15 @@ function showMapError(message, submessage) {
 
   mapArea.appendChild(errorOverlay);
 }
+
+// ----------------------------------------------------
+// 12. グローバル window エクスポート (HTML内のインラインイベントハンドラ対応)
+// ----------------------------------------------------
+window.handleAddUser = handleAddUser;
+window.switchMode = switchMode;
+window.deleteUser = deleteUser;
+window.confirmClearAll = confirmClearAll;
+window.exportToCSV = exportToCSV;
+window.focusOnMapRegion = focusOnMapRegion;
+window.highlightMapRegion = highlightMapRegion;
+window.toggleAccordion = toggleAccordion;
