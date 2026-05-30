@@ -74,25 +74,6 @@
             <span id="form-title">住んでいる地域を登録</span>
           </h2>
           <form id="register-form" onsubmit="event.preventDefault(); handleAddUser();">
-            <!-- 個人情報保護・登録前の注意ボックス -->
-            <div class="privacy-notice">
-              <i class="fa-solid fa-circle-exclamation privacy-icon"></i>
-              <div>
-                <strong>登録前の注意</strong>
-                <p>
-                  登録された名前・ニックネームと居住地は、他の閲覧者にも共有されます。
-                  本人の同意を得たうえで登録してください。
-                  個人情報保護のため、実名ではなくニックネームでの登録を推奨します。
-                </p>
-              </div>
-            </div>
-
-            <!-- 共有DB接続状態バッジ -->
-            <div id="db-status-box" class="db-status-box checking">
-              <i id="db-status-icon" class="fa-solid fa-spinner fa-spin"></i>
-              <span id="db-status-text">共有DB接続状態を確認中...</span>
-            </div>
-
             <div class="form-group">
               <label for="username">お名前 / ニックネーム</label>
               <div class="input-wrapper">
@@ -106,16 +87,6 @@
               <div class="input-wrapper select-wrapper">
                 <i class="fa-solid fa-location-dot input-icon"></i>
                 <select id="hometown-select" class="form-control" required>
-                  <!-- JSで動的生成 -->
-                </select>
-              </div>
-            </div>
-            
-            <div id="wardSelectContainer" class="form-group" style="display: none;">
-              <label for="wardSelect">広島市の区</label>
-              <div class="input-wrapper select-wrapper">
-                <i class="fa-solid fa-city input-icon"></i>
-                <select id="wardSelect" class="form-control">
                   <!-- JSで動的生成 -->
                 </select>
               </div>
@@ -170,7 +141,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <!-- 外部スクリプト (Firebase SDKのインポートのため module 化) -->
-  <script type="module" src="script.js"></script>
+  <!-- 外部スクリプト -->
+  <script src="script.js"></script>
 </body>
 </html>
